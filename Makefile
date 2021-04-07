@@ -1,9 +1,10 @@
 CC = gcc
 OUT = ip-checksum-test
-CFLAGS = -O2
+CFLAGS = -O3
 
-arch = $(shell uname -p)
+arch = $(shell uname -m)
 
+CHECKSUM_O = checksum.o
 CFILES = $(wildcard *.c)
 OBJFILES = $(CFILES:.c=.o)
 
@@ -16,6 +17,10 @@ endif
 $(OUT): $(OBJFILES)
 	$(CC) $(CFLAGS) $(OBJFILES) -o $(OUT)
 
+ifeq ($(arch),e2k)
+$(CHECKSUM_O): %.o: %.c
+	$(CC) $(CFLAGS) -faligned -c -o $@ $<
+endif
+
 clean:
 	rm -f *.o $(OUT)
-
