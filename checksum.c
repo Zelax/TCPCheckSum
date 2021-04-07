@@ -1,4 +1,10 @@
+/*
+ * Generic checksm routine taken from DPDK: 
+ *   BSD license; (C) Intel 2010-2015, 6WIND 2014.
+ */
+
 #include "checksum.h"
+#include <netinet/in.h>
 
 uint16_t c_checksum(uint8_t *data, uint16_t len, uint16_t init);
 #ifdef ALG_AMD64
@@ -12,26 +18,34 @@ checksum_t checksum_funcs[CSA_COUNT] = {
 #endif
 };
 
-uint16_t c_checksum(uint8_t *data, uint16_t len, uint16_t init) {
-  uint64_t sum = init;
-  uint16_t l = len;
-  uint32_t *p = (uint32_t*) data;
-  uint16_t i = 0;
-  while (l >= 4) {
-    sum = sum + p[i++];
-    l -= 4;
+uint16_t c_checksum(uint8_t *p, uint16_t len, uint16_t init)
+{
+  uint32_t sum = htons(init);
+  const uint16_t *u16 = (const uint16_t *)p;
+
+#ifdef __e2k__
+#pragma vector aligned
+#pragma unroll(4)
+#endif
+  while (len >= (sizeof(*u16) * 4)) {
+    sum += u16[0];
+    sum += u16[1];
+    sum += u16[2];
+    sum += u16[3];
+    len -= sizeof(*u16) * 4;
+    u16 += 4;
   }
-  if (l >= 2) {
-    sum = sum + ((uint16_t*) data)[i * 2];
-    l -= 2;
-  }
-  if (l == 1) {
-    sum += data[len-1];
+  while (len >= sizeof(*u16)) {
+    sum += *u16;
+    len -= sizeof(*u16);
+    u16 += 1;
   }
 
-  while (sum>>16) {
-    sum = (sum & 0xffff) + (sum>>16);
-  }
+  /* if length is in odd bytes */
+  if (len == 1)
+    sum += *((const uint8_t *)u16);
 
-  return (uint16_t)~sum;
+  while(sum>>16)
+    sum = (sum & 0xFFFF) + (sum>>16);
+  return ntohs((uint16_t)~sum);
 }
